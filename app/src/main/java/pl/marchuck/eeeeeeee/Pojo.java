@@ -81,4 +81,15 @@ public class Pojo {
     public void setAge(short age) {
         this.age = age;
     }
+
+    @Override
+    public String toString() {
+        return "Pojo{" +
+                "uuid='" + uuid + '\'' +
+                ", message='" + message + '\'' +
+                ", number=" + number +
+                ", date='" + date + '\'' +
+                ", age=" + age +
+                '}';
+    }
 }
