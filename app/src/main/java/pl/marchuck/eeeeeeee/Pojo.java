@@ -27,14 +27,19 @@ public class Pojo {
     @SQLiteField("date")
     private String date;
 
+
+    @SQLiteField(value = "age", type = "SHORT")
+    private short age;
+
     public Pojo() {
     }
 
-    public Pojo(String uuid, String message, int number, String date) {
+    public Pojo(String uuid, String message, int number, String date, short age) {
         this.uuid = uuid;
         this.message = message;
         this.number = number;
         this.date = date;
+        this.age = age;
     }
 
     public String getUuid() {
@@ -67,5 +72,13 @@ public class Pojo {
 
     public void setDate(String date) {
         this.date = date;
+    }
+
+    public short getAge() {
+        return age;
+    }
+
+    public void setAge(short age) {
+        this.age = age;
     }
 }

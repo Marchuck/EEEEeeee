@@ -4,12 +4,14 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
+import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -46,8 +48,25 @@ public class SQLiteOpenHelperGenerator {
                 .addJavadoc("created with SQLight")
                 .addModifiers(PUBLIC);
 
+
+        addConstructor(builder);
+
+        addOverrideMethods(builder, table);
+
+        addStaticFields(table, messager, builder);
+
+        addADDMethod(builder, table, name);
+        addREADMethod(builder, table, name);
+        addUPDATEMethod(builder, table, name);
+        addDELETEMethod(builder, table, name);
+
+        return builder
+                .superclass(TypeName.get(SQLiteOpenHelper.class))
+                .build();
+    }
+
+    private static void addConstructor(TypeSpec.Builder builder) {
         TypeName contextTypeName = TypeName.get(Context.class);
-        TypeName sqliteDatabaseTypeName = TypeName.get(SQLiteDatabase.class);
 
         builder.addMethod(
                 MethodSpec.constructorBuilder()
@@ -58,6 +77,10 @@ public class SQLiteOpenHelperGenerator {
                         .addModifiers(PUBLIC)
                         .build()
         );
+    }
+
+    private static void addOverrideMethods(TypeSpec.Builder builder, TypeElement table) {
+        TypeName sqliteDatabaseTypeName = TypeName.get(SQLiteDatabase.class);
 
         builder.addMethod(
                 MethodSpec.methodBuilder("onCreate")
@@ -77,13 +100,13 @@ public class SQLiteOpenHelperGenerator {
                         .addParameter(TypeName.INT, "newVersion")
                         .addModifiers(PUBLIC)
                         .addAnnotation(Override.class)
-                        .addCode("database.execSQL(\"DROP TABLE IF EXISTS \" + TABLE_NAME);\n")
+                        .addCode("database.execSQL(\"DROP TABLE IF EXISTS \" + " + getTableFieldName(table) + ");\n")
                         .addCode("onCreate(database);")
                         .build()
         );
+    }
 
-        addStaticFields(table, messager, builder);
-
+    private static void addADDMethod(TypeSpec.Builder builder, TypeElement table, String name) {
         builder.addMethod(
                 MethodSpec.methodBuilder("add" + camelCased(table.getSimpleName().toString()))
                         .addModifiers(PUBLIC)
@@ -92,15 +115,150 @@ public class SQLiteOpenHelperGenerator {
                                         TypeName.get(Object.class), "new" + camelCased(name)
                                 ).build()
                         )
-                        .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "new" + camelCased(name)+";\n")
-                        .addCode("//todo: dokończyć\n")
+                        .addParameter(
+                                ParameterSpec.builder(
+                                        TypeName.BOOLEAN, "shouldCloseDatabase"
+                                ).build()
+                        )
+                        .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "new" + camelCased(name) + ";\n")
+                        .addCode("SQLiteDatabase database = this.getWritableDatabase();\n")
+                        .addCode("android.content.ContentValues values = new android.content.ContentValues();\n")
+                        .addCode(contentValuesFill("values", name.toLowerCase(), table))
+                        .addCode("database.insert(" + getTableFieldName(table) + ", null, values);")
+                        .addCode("\nif(shouldCloseDatabase) database.close();")
+                        .addCode("//todo: TEST THIS!!!\n")
                         .returns(TypeName.VOID)
                         .build()
         );
 
-        return builder
-                .superclass(TypeName.get(SQLiteOpenHelper.class))
-                .build();
+    }
+
+    private static void addUPDATEMethod(TypeSpec.Builder builder, TypeElement table, String name) {
+        //todo:
+    }
+
+    private static void addDELETEMethod(TypeSpec.Builder builder, TypeElement table, String name) {
+        //todo:
+    }
+
+    private static void addREADMethod(TypeSpec.Builder builder, TypeElement table, String name) {
+
+
+        builder.addMethod(
+                MethodSpec.methodBuilder("get" + camelCased(table.getSimpleName().toString()))
+                        .addModifiers(PUBLIC)
+                        .addParameter(
+                                ParameterSpec.builder(
+                                        TypeName.get(String.class), "_key"
+                                ).build()
+                        )
+                        .addParameter(
+                                ParameterSpec.builder(
+                                        TypeName.get(String.class), "value"
+                                ).build()
+                        )
+                      //  .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "new " + camelCased(name) + "();\n")
+                        .addCode("\nSQLiteDatabase database = this.getReadableDatabase();\n")
+                        .addCode("android.database.Cursor cursor = database.query(" + getTableFieldName(table)
+                                + ", new String[] {\n")
+                        .addCode(columnsOfThisTable(table))
+                        .addCode("}\n, _key + \"=?\",\n")
+                        .addCode("new String[] { String.valueOf(value) }, null, null, null, null);\n")
+                        .addCode("if(cursor !=null) cursor.moveToFirst();\n")
+                        .addCode("else return null;\n")
+                        .addCode(name + " " + name.toLowerCase() + " = new " + name + "();\n")
+                        .addCode(fillFiledsInThisAnnotatedKlazz(name.toLowerCase(), "cursor", table))
+                        .addCode("\nreturn " + name.toLowerCase() + ";\n")
+                        .returns(TypeName.get(Object.class))
+                        .build()
+        );
+
+//        SQLiteDatabase db = this.getReadableDatabase();
+//
+//        android.database.Cursor cursor = db.query(TABLE_CONTACTS, new String[] { KEY_ID,
+//                        KEY_NAME, KEY_PH_NO }, KEY_ID + "=?",
+//                new String[] { String.valueOf(id) }, null, null, null, null);
+//        if (cursor != null)
+//            cursor.moveToFirst();
+//
+//        Contact contact = new Contact(Integer.parseInt(cursor.getString(0)),
+//                cursor.getString(1), cursor.getString(2));
+//        // return contact
+//        return contact;
+    }
+
+    private static String fillFiledsInThisAnnotatedKlazz(String variableName, String cursorName, TypeElement table) {
+        StringBuilder sb = new StringBuilder();
+        List<Element> fields = getAnnotatedFieldsOf(SQLiteField.class, table.getEnclosedElements());
+        int index = 0;
+        for (Element element : fields) {
+            String fieldName = camelCased(element.getSimpleName().toString());
+            SQLiteField sqLiteField = element.getAnnotation(SQLiteField.class);
+            String type = sqLiteField.type();
+            String forSqLiteReadableType;
+            if (type.equals("INT")) {
+                forSqLiteReadableType = "Int";
+            } else if (type.equals("LONG")) {
+                forSqLiteReadableType = "Long";
+            } else if (type.equals("SHORT")) {
+                forSqLiteReadableType = "Short";
+            } else if (type.equals("DOUBLE")) {
+                forSqLiteReadableType = "Double";
+            } else {
+                forSqLiteReadableType = "String";
+
+            }
+            /* for instance: pojo    .setUuid(   cursor   .getString   (0)); */
+            sb.append(variableName)
+                    .append(".set").append(fieldName).append("(")
+
+                    .append(cursorName)
+
+                    .append(".get").append(forSqLiteReadableType)
+
+                    .append("(").append(index).append(") );\n");
+            index++;
+        }
+        return sb.toString();
+    }
+
+    private static String columnsOfThisTable(TypeElement table) {
+        StringBuilder stringBuilder = new StringBuilder();
+        List<Element> fields = getAnnotatedFieldsOf(SQLiteField.class, table.getEnclosedElements());
+        for (int j = 0; j < fields.size(); j++) {
+            Element e = fields.get(j);
+            SQLiteField sqLiteField = e.getAnnotation(SQLiteField.class);
+            String fieldName = sqLiteField.value();
+            String keyName = "KEY_" + fieldName.toUpperCase();
+
+            stringBuilder.append(keyName).append(",\n");
+        }
+
+        return stringBuilder.toString();
+    }
+
+    private static String contentValuesFill(String valuesVariableName, String newObjectName, TypeElement table) {
+        StringBuilder sb = new StringBuilder();
+
+        for (Element e : table.getEnclosedElements()) {
+            if (e.getKind() == ElementKind.FIELD) {
+
+                SQLiteField annotatedField = e.getAnnotation(SQLiteField.class);
+
+                if (annotatedField != null && annotatedField.value() != null) {
+                    String fieldNameCamelCased = camelCased(e.getSimpleName().toString());
+                    String keyName = "KEY_" + annotatedField.value().toUpperCase();
+
+                    sb.append(valuesVariableName)
+                            .append(".put(").append(keyName)
+                            .append(",")
+                            .append(newObjectName).append(".get").append(fieldNameCamelCased).append("() );\n");
+                } else {
+                    //got other field that wasn't annotated with SQLiteField
+                }
+            }
+        }
+        return sb.toString();
     }
 
     private static String camelCased(String simpleName) {
@@ -111,7 +269,6 @@ public class SQLiteOpenHelperGenerator {
     }
 
     private static void addStaticFields(TypeElement table, Messager messager, TypeSpec.Builder builder) {
-
 
         for (Element field : table.getEnclosedElements()) {
 
@@ -141,8 +298,8 @@ public class SQLiteOpenHelperGenerator {
                 .initializer((String.valueOf(1)))
                 .build());
 
-        builder.addField(FieldSpec.builder(String.class, "TABLE_NAME", PUBLIC, STATIC, FINAL)
-                .initializer(asLiteralString(getTableName(table)))
+        builder.addField(FieldSpec.builder(String.class, getTableFieldName(table), PUBLIC, STATIC, FINAL)
+                .initializer(asLiteralString(getTableFieldValue(table)))
                 .build());
 
         builder.addField(FieldSpec.builder(String.class, "DATABASE_CREATE_SCHEMA", PUBLIC, STATIC, FINAL)
@@ -159,20 +316,13 @@ public class SQLiteOpenHelperGenerator {
         StringBuilder schema = new StringBuilder();
         schema.append("CREATE TABLE");
         schema.append(' ');
-        schema.append(getTableName(table));
+        schema.append(getTableFieldValue(table));
         schema.append("( ");
 
-
         List<? extends Element> enclosedElements = table.getEnclosedElements();
-        List<Element> annotatedElements = new ArrayList<>();
-        for (Element e : enclosedElements) {
-            if (e.getKind() == ElementKind.FIELD) {
-                SQLiteField annotatedField = e.getAnnotation(SQLiteField.class);
-                if (annotatedField != null) {
-                    annotatedElements.add(e);
-                }
-            }
-        }
+
+        List<Element> annotatedElements = getAnnotatedFieldsOf(SQLiteField.class, enclosedElements);
+
         if (annotatedElements.size() == 0)
             throw new IllegalStateException("At least one field should be in  table " + table.getSimpleName());
 
@@ -191,6 +341,20 @@ public class SQLiteOpenHelperGenerator {
         return schema.append(");").toString();
     }
 
+    private static <T extends Annotation>
+    List<Element> getAnnotatedFieldsOf(Class<T> klazz, List<? extends Element> enclosedElements) {
+        List<Element> annotatedElements = new ArrayList<>();
+        for (Element e : enclosedElements) {
+            if (e.getKind() == ElementKind.FIELD) {
+                T annotatedField = e.getAnnotation(klazz);
+                if (annotatedField != null) {
+                    annotatedElements.add(e);
+                }
+            }
+        }
+        return annotatedElements;
+    }
+
     private static void appendNextField(Element firstElement, StringBuilder schema) {
         SQLiteField annotatedField = firstElement.getAnnotation(SQLiteField.class);
 
@@ -201,14 +365,34 @@ public class SQLiteOpenHelperGenerator {
         schema.append(' ');
         schema.append(fieldType);
 
-        if (firstElement.getAnnotation(SQLitePrimaryKey.class) != null) {
+        if (isPrimaryKey(firstElement)) {
             schema.append(" primary key");
         }
     }
 
+    private static boolean isPrimaryKey(Element e) {
+        return elementHasAnnotation(e, SQLitePrimaryKey.class);
+    }
 
-    private static String getTableName(TypeElement table) {
+    private static boolean elementHasAnnotation(Element e, Class<? extends Annotation> annotation) {
+        return e.getAnnotation(annotation) != null;
+    }
+
+
+    private Element getPrimaryKey(TypeElement table) {
+        for (Element e : table.getEnclosedElements()) {
+            if (isPrimaryKey(e)) return e;
+        }
+        throw new NoPrimaryKeyException();
+    }
+
+
+    private static String getTableFieldValue(TypeElement table) {
         SQLiteTable name = table.getAnnotation(SQLiteTable.class);
         return name == null ? table.getSimpleName().toString().toLowerCase() : name.value();
+    }
+
+    private static String getTableFieldName(TypeElement table) {
+        return "TABLE_" + table.getSimpleName().toString().toUpperCase();
     }
 }
