@@ -38,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+
+        PlainGeoPlaceOpenHelper p;
         textView = (TextView) findViewById(R.id.textview);
 
         Button addBtn = (Button) findViewById(R.id.add);
@@ -51,12 +53,12 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-      searchBtn.setOnClickListener(new View.OnClickListener() {
-          @Override
-          public void onClick(View v) {
-              searchPojoDialog();
-          }
-      });
+        searchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                searchPojoDialog();
+            }
+        });
 
     }
 
@@ -115,6 +117,8 @@ public class MainActivity extends AppCompatActivity {
 
         dialog.show();
     }
+
+
 
 
 }

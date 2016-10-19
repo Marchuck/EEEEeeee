@@ -4,7 +4,6 @@ import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
-import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
@@ -28,7 +27,7 @@ import static javax.lang.model.element.Modifier.STATIC;
 
 /**
  * Project "Annotations101"
- * <p/>
+ * <p>
  * Created by Lukasz Marczak
  * on 09.10.16.
  */
@@ -107,9 +106,11 @@ public class SQLiteOpenHelperGenerator {
     }
 
     private static void addADDMethod(TypeSpec.Builder builder, TypeElement table, String name) {
+        String camelCasedName = camelCased(table.getSimpleName().toString());
         builder.addMethod(
-                MethodSpec.methodBuilder("add" + camelCased(table.getSimpleName().toString()))
+                MethodSpec.methodBuilder("add" + camelCasedName)
                         .addModifiers(PUBLIC)
+                        .addJavadoc("Adds " + camelCasedName + " to table\n")
                         .addParameter(
                                 ParameterSpec.builder(
                                         TypeName.get(Object.class), "new" + camelCased(name)
@@ -133,13 +134,62 @@ public class SQLiteOpenHelperGenerator {
 
     }
 
-    private static void addUPDATEMethod(TypeSpec.Builder builder, TypeElement table, String name) {
-        //todo:
-    }
 
     private static void addDELETEMethod(TypeSpec.Builder builder, TypeElement table, String name) {
-        //todo:
+
+        Element primaryKey = getPrimaryKey(table);
+        String keyName = "KEY_" + primaryKey.getAnnotation(SQLiteField.class).value().toUpperCase();
+
+
+//        return db.delete(DATABASE_TABLE, KEY_ROWID + "=" + rowId, null) > 0;
+
+        builder.addMethod(
+                MethodSpec.methodBuilder("delete" + camelCased(name))
+                        .addJavadoc("Deletes object with given primary key\n" +
+                                "if object is succesfully deleted\n" +
+                                "result is true, false otherwise")
+                        .addModifiers(PUBLIC)
+                        .addParameter(ParameterSpec.builder(TypeName.get(Object.class), "_"
+                                + name.toLowerCase()).build())
+                        .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "_"
+                                + name.toLowerCase() + ";\n")
+
+                        .addCode("\nSQLiteDatabase database = this.getWritableDatabase();\n")
+                        .addCode("boolean result =  database.delete("
+                                + getTableFieldName(table) + ", "
+                                + keyName + "+\"=\"+"
+                                + name.toLowerCase() + ",null) > 0;\n")
+                        .addCode("return result;\n")
+                        .returns(TypeName.BOOLEAN)
+                        .build()
+        );
     }
+
+
+    private static void addUPDATEMethod(TypeSpec.Builder builder, TypeElement table, String name) {
+
+        Element primaryKey = getPrimaryKey(table);
+        String keyName = "KEY_" + primaryKey.getAnnotation(SQLiteField.class).value().toUpperCase();
+
+
+        builder.addMethod(
+                MethodSpec.methodBuilder("update" + camelCased(name))
+                        .addModifiers(PUBLIC)
+                        .addParameter(ParameterSpec.builder(TypeName.get(Object.class), "_" + name.toLowerCase()).build())
+                        .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "_" + name.toLowerCase() + ";\n")
+
+                        .addCode("\nSQLiteDatabase database = this.getWritableDatabase();\n")
+                        .addCode("android.content.ContentValues values = new android.content.ContentValues();\n")
+                        .addCode(contentValuesFill("values", name.toLowerCase(), table))
+                        .addCode("int result =  database.update(" + getTableFieldName(table) + ", values, "
+                                + keyName + "+\" = ?\", \nnew String[] { String.valueOf("
+                                + name.toLowerCase() + ".get" + camelCased(primaryKey.getSimpleName().toString())
+                                + "()) });")
+                        .returns(TypeName.VOID)
+                        .build()
+        );
+    }
+
 
     private static void addREADMethod(TypeSpec.Builder builder, TypeElement table, String name) {
 
@@ -157,7 +207,7 @@ public class SQLiteOpenHelperGenerator {
                                         TypeName.get(String.class), "value"
                                 ).build()
                         )
-                      //  .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "new " + camelCased(name) + "();\n")
+                        //  .addCode(name + " " + name.toLowerCase() + " = (" + name + ") " + "new " + camelCased(name) + "();\n")
                         .addCode("\nSQLiteDatabase database = this.getReadableDatabase();\n")
                         .addCode("android.database.Cursor cursor = database.query(" + getTableFieldName(table)
                                 + ", new String[] {\n")
@@ -172,19 +222,6 @@ public class SQLiteOpenHelperGenerator {
                         .returns(TypeName.get(Object.class))
                         .build()
         );
-
-//        SQLiteDatabase db = this.getReadableDatabase();
-//
-//        android.database.Cursor cursor = db.query(TABLE_CONTACTS, new String[] { KEY_ID,
-//                        KEY_NAME, KEY_PH_NO }, KEY_ID + "=?",
-//                new String[] { String.valueOf(id) }, null, null, null, null);
-//        if (cursor != null)
-//            cursor.moveToFirst();
-//
-//        Contact contact = new Contact(Integer.parseInt(cursor.getString(0)),
-//                cursor.getString(1), cursor.getString(2));
-//        // return contact
-//        return contact;
     }
 
     private static String fillFiledsInThisAnnotatedKlazz(String variableName, String cursorName, TypeElement table) {
@@ -379,7 +416,7 @@ public class SQLiteOpenHelperGenerator {
     }
 
 
-    private Element getPrimaryKey(TypeElement table) {
+    private static Element getPrimaryKey(TypeElement table) {
         for (Element e : table.getEnclosedElements()) {
             if (isPrimaryKey(e)) return e;
         }

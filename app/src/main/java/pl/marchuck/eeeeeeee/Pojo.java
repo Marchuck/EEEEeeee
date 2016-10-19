@@ -11,7 +11,7 @@ import com.example.SQLiteTable;
  * Created by Lukasz Marczak
  * on 09.10.16.
  */
-@SQLiteTable("MY_GENERATED_TABLE")
+@SQLiteTable("ARCZIBONS")
 public class Pojo {
 
     @SQLiteField("uuid")
