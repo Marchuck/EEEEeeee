@@ -9,15 +9,13 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
-import java.io.Closeable;
-import java.io.Serializable;
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.VariableElement;
 
 import static com.squareup.javapoet.MethodSpec.methodBuilder;
@@ -79,18 +77,24 @@ final class BeaconCodeGenerator {
 
         StringBuilder code = new StringBuilder();
         for (ExecutableElement ex : second) {
-            code.append("\n\tif (device.getAddress().equals(\""
+            code.append("\n\tif (ref.get()!=null && device.getAddress().equals(\""
                     + ex.getAnnotation(WhenDetected.class).value() + "\")){\n");
-            code.append("\t\tref." + ex.getSimpleName() + "();\n");
+            code.append("\t\t" +
+                    "ref.get()." + ex.getSimpleName() + "();\n");
+//                    "( (" + klazz.getSimpleName() + ") ref.get() )." + ex.getSimpleName() + "();\n");
             code.append("\t}");
         }
 
-        builder.addField(FieldSpec.builder(TypeName.get(klazz.asType()), "ref", Modifier.PRIVATE).build());
+        ClassName weakReference = ClassName.get(WeakReference.class);
+        TypeName ref = TypeName.get(klazz.asType());
+        TypeName weakReferenceOfRef = ParameterizedTypeName.get(weakReference, ref);
+
+        builder.addField(FieldSpec.builder(weakReferenceOfRef, "ref", Modifier.PRIVATE).build());
 
         builder.addMethod(MethodSpec.methodBuilder("init")
                 .addModifiers(PUBLIC)
                 .addParameter(TypeName.get(klazz.asType()), "scope")
-                .addStatement("ref = scope")
+                .addStatement("ref = new WeakReference<>(scope);\n")
 //                .addStatement("// elementqq : " + elementqq.getQualifiedName().toString())
 //                .addStatement("//enclosing elements: " + elementqq.getEnclosingElement().getSimpleName())
 //                .addStatement("// enclosed elements: " + elementqq.getEnclosedElements().get(0).getSimpleName())

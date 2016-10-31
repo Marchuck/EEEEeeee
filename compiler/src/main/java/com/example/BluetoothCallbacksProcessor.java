@@ -59,26 +59,39 @@ public class BluetoothCallbacksProcessor extends AbstractProcessor {
 
         List<Three<Element, List<ExecutableElement>, List<VariableElement>>> all = new ArrayList<>();
         for (Element root : roundEnv.getElementsAnnotatedWith(BluetoothScope.class)) {
-        for (Element nestedElement : roundEnv.getElementsAnnotatedWith(WhenDetected.class)) {
-            messager.printMessage(Diagnostic.Kind.NOTE, "klazz " + nestedElement.getSimpleName().toString());
 
-            List<ExecutableElement> annotatedMethods = new ArrayList<>();
-            List<VariableElement> annotatedFields = new ArrayList<>();
+            List<ExecutableElement> executableElements = new ArrayList<>();
 
-            if (nestedElement.getKind() == ElementKind.FIELD) {
-                messager.printMessage(Diagnostic.Kind.NOTE, "field " + nestedElement.getSimpleName().toString());
+            for (Element element : root.getEnclosedElements()) {
 
-                annotatedFields.add((VariableElement) nestedElement);
+                if (element.getKind() == ElementKind.METHOD) {
 
-            } else if (nestedElement.getKind() == ElementKind.METHOD) {
-                messager.printMessage(Diagnostic.Kind.NOTE, "method " + nestedElement.getSimpleName().toString());
+                    if (element.getAnnotation(WhenDetected.class) != null) {
 
-                annotatedMethods.add((ExecutableElement) nestedElement);
+                    }
+                }
             }
 
-            all.add(new Three<>(root, annotatedMethods, annotatedFields));
+            for (Element nestedElement : roundEnv.getElementsAnnotatedWith(WhenDetected.class)) {
+                messager.printMessage(Diagnostic.Kind.NOTE, "klazz " + nestedElement.getSimpleName().toString());
 
-        }
+                List<ExecutableElement> annotatedMethods = new ArrayList<>();
+                List<VariableElement> annotatedFields = new ArrayList<>();
+
+                if (nestedElement.getKind() == ElementKind.FIELD) {
+                    messager.printMessage(Diagnostic.Kind.NOTE, "field " + nestedElement.getSimpleName().toString());
+
+                    annotatedFields.add((VariableElement) nestedElement);
+
+                } else if (nestedElement.getKind() == ElementKind.METHOD) {
+                    messager.printMessage(Diagnostic.Kind.NOTE, "method " + nestedElement.getSimpleName().toString());
+
+                    annotatedMethods.add((ExecutableElement) nestedElement);
+                }
+
+                all.add(new Three<>(root, annotatedMethods, annotatedFields));
+
+            }
         }
 
         generate(all);
@@ -126,18 +139,18 @@ public class BluetoothCallbacksProcessor extends AbstractProcessor {
 
                 String packageName = getPackageName(processingEnv.getElementUtils(), three.first);
 
-                TypeSpec generatedClass = BeaconCodeGenerator.generateClass(processingEnv,three.first, three.second, three.third);
+                TypeSpec generatedClass = BeaconCodeGenerator.generateClass(processingEnv, three.first, three.second, three.third);
 
                 JavaFile javaFile = builder(packageName, generatedClass).build();
                 javaFile.writeTo(processingEnv.getFiler());
 
             }
         } catch (Exception v) {
-            messager.printMessage(Diagnostic.Kind.MANDATORY_WARNING, "Sth went wrong "+v.getMessage());
+            messager.printMessage(Diagnostic.Kind.MANDATORY_WARNING, "Sth went wrong " + v.getMessage());
         }
 
-
     }
+
     static int x;
 }
 
