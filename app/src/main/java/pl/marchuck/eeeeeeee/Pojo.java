@@ -11,14 +11,14 @@ import com.example.SQLiteTable;
  * Created by Lukasz Marczak
  * on 09.10.16.
  */
-@SQLiteTable("ARCZIBONS")
+@SQLiteTable("TABLETA_PATRYKA")
 public class Pojo {
 
-    @SQLiteField("uuid")
+    @SQLiteField("iddd")
     @SQLitePrimaryKey
     private String uuid;
 
-    @SQLiteField("message")
+    @SQLiteField("dsvsvsdvdflvjndfvodn")
     private String message;
 
     @SQLiteField(value = "number", type = "INT")

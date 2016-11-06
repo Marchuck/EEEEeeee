@@ -1,12 +1,19 @@
 package pl.marchuck.eeeeeeee;
 
+import android.annotation.TargetApi;
 import android.app.Dialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
+import android.content.Context;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.MultiAutoCompleteTextView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,23 +30,55 @@ import java.util.Date;
 public class MainActivity extends AppCompatActivity {
 
     public static final String TAG = MainActivity.class.getSimpleName();
+    private static final int REQUEST_ENABLE_BT = 0;
+    private static final String variable = "";
+
+    static class ImmutableMac {
+        final String mac;
+
+        public ImmutableMac(String mac) {
+            this.mac = mac;
+        }
+    }
 
     @WhenDetected("mac_address")
     public void doSth() {
         Log.i(TAG, "doSth: ");
     }
 
+    @WhenDetected("")
+    public void doSthElse() {
+
+    }
+
+    MainActivityBleScanner bleScanner = new MainActivityBleScanner();
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d(TAG, "onResume: ");
+        btAdapter.startLeScan(bleScanner);
+    }
+
+    @Override
+    protected void onPause() {
+        btAdapter.stopLeScan(bleScanner);
+
+        super.onPause();
+    }
+
     TextView textView;
 
     final PojoOpenHelper helper = new PojoOpenHelper(MainActivity.this);
+    BluetoothAdapter btAdapter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        bleScanner.init(this);
 
-
-        PlainGeoPlaceOpenHelper p;
+        enableBluetoothAdapterIfNeeded();
         textView = (TextView) findViewById(R.id.textview);
 
         Button addBtn = (Button) findViewById(R.id.add);
@@ -60,6 +99,20 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
+        PojoOpenHelper openHelper = PojoOpenHelper.
+    }
+
+
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN_MR2)
+    void enableBluetoothAdapterIfNeeded() {
+        BluetoothManager btManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+
+        btAdapter = btManager.getAdapter();
+        if (btAdapter != null && !btAdapter.isEnabled()) {
+            Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableIntent, REQUEST_ENABLE_BT);
+        }
     }
 
     void addNewPojoDialog() {
@@ -117,8 +170,6 @@ public class MainActivity extends AppCompatActivity {
 
         dialog.show();
     }
-
-
 
 
 }

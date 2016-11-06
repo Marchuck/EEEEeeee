@@ -302,7 +302,6 @@ public class SQLiteOpenHelperGenerator {
         StringBuilder stringBuilder = new StringBuilder(simpleName.toLowerCase());
         stringBuilder.replace(0, 1, String.valueOf(simpleName.charAt(0)).toUpperCase());
         return stringBuilder.toString();
-
     }
 
     private static void addStaticFields(TypeElement table, Messager messager, TypeSpec.Builder builder) {
